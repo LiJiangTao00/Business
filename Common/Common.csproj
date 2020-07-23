@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <PackageReference Include="JWT" Version="7.2.1" />
+    <PackageReference Include="StackExchange.Redis" Version="2.1.58" />
   </ItemGroup>
 
 </Project>

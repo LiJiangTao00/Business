@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Model;
 using Model.Models;
 using Model.ViewModel;
+using Newtonsoft.Json;
 
 namespace EBusinessAPI.Controllers
 {
@@ -39,7 +40,8 @@ namespace EBusinessAPI.Controllers
                                              Id = c.UserId,
                                              UserName = c.UserName,
                                              Totalprice = o.Totalprice,
-                                             Userlevel = c.Userlevel
+                                             Userlevel = c.Userlevel,
+                                             Useraddress = c.Useraddress
                                          }).ToList();
             return members;
         }
@@ -91,7 +93,7 @@ namespace EBusinessAPI.Controllers
                         ForMemberGrade(11);
                         break;
                 }
-                 flag=  context.SaveChanges();
+                flag = context.SaveChanges();
             }
             return flag;
         }
@@ -161,16 +163,115 @@ namespace EBusinessAPI.Controllers
         /// <param name="Cpwd">密码</param>
         /// <returns></returns>
         [HttpGet]
-        public int LoginCustonmer(string Cname,string Cpwd)
+        public int LoginCustonmer(string Cname, string Cpwd)
         {
             Cpwd = Md5Helper.ToMd5(Cpwd);
             Customer customer = context.Customer.ToList().Find(x => x.UserName.Equals(Cname) && x.UserPwd.Equals(Cpwd));
-            if (customer!=null)
+            if (customer != null)
             {
                 return 1;
             }
             return 0;
         }
+        /// <summary>
+        /// 管理员登录
+        /// </summary>
+        /// <param name="Aname">账号</param>
+        /// <param name="Apwd">密码</param>
+        /// <returns></returns>
+        public int LoginAdmin(string Aname, string Apwd)
+        {
+            Apwd = Md5Helper.ToMd5(Apwd);
+            AdminInfo admin = context.AdminInfo.ToList().Find(x => x.AdminName.Equals(Aname) && x.AdminPwd.Equals(Apwd));
+            if (admin != null)
+            {
+                return 1;
+            }
+            return 0;
+        }
+        /// <summary>
+        /// 保存到redis
+        /// </summary>
+        /// <param name="ProductTypeName">商品模块的类型</param>
+        /// <returns></returns>
+        public bool SaveRedis(string ProductTypeName)
+        {
+            RedisHelper redisHelper = new RedisHelper("127.0.0.1:6379");
+            bool testValue = false;
+            if (ProductTypeName == "新商品")
+            {
+                //前十条最新商品
+                List<ProductInfo> newProduct = (from p in context.ProductInfo.ToList() orderby p.ProductStoretime descending select p).ToList();
+                string newProductString = JsonConvert.SerializeObject(newProduct.Take(20));
+                //存储到redis
+                testValue = redisHelper.SetValue("newProduct", newProductString);
+            }
+            else if (ProductTypeName == "促销商品")
+            {
+                List<ProductInfo> AllProduct = (from p in context.ProductInfo.ToList() orderby p.ProductStoretime descending select p).ToList();
 
+                string lowProductString = JsonConvert.SerializeObject(AllProduct);
+                //存储到redis
+                testValue = redisHelper.SetValue("lowProduct", lowProductString);
+            }
+            else if (ProductTypeName == "热销商品")
+            {
+                List<ProductInfo> newProduct = (from p in context.ProductInfo.ToList() orderby p.ProductDealamount descending select p).ToList();
+                string hotProductString = JsonConvert.SerializeObject(newProduct.Take(20));
+                //存储到redis
+                testValue = redisHelper.SetValue("hotProduct", hotProductString);
+            }
+            else if (ProductTypeName == "本月top10")
+            {
+                //浏览次数最多
+                List<ProductInfo> newProduct = (from p in context.ProductInfo.ToList() orderby p.ProductLookamount descending select p).ToList();
+                string lookProductString = JsonConvert.SerializeObject(newProduct.Take(10));
+                //存储到redis
+                testValue = redisHelper.SetValue("lookProduct", lookProductString);
+            }
+            else
+            {
+
+            }
+            return testValue;
+        }
+        /// <summary>
+        /// 获取redis中保存的各种商品
+        /// </summary>
+        /// <param name="ProductTypeName">商品模块类型</param>
+        /// <returns></returns>
+        public List<ProductInfo> GetRedis(string ProductTypeName)
+        {
+            RedisHelper redisHelper = new RedisHelper("127.0.0.1:6379");
+            ///获取redis
+            string saveValue = "";
+            if (ProductTypeName == "新商品")
+            {
+                ///获取redis
+                saveValue = redisHelper.GetValue("newProduct");
+            }
+            else if (ProductTypeName == "促销商品")
+            {
+                ///获取redis
+                saveValue = redisHelper.GetValue("lowProduct");
+            }
+            else if (ProductTypeName == "热销商品")
+            {
+                ///获取redis
+                saveValue = redisHelper.GetValue("hotProduct");
+            }
+            else if (ProductTypeName == "本月top10")
+            {
+                //浏览次数最多
+                ///获取redis
+                saveValue = redisHelper.GetValue("lookProduct");
+            }
+            else
+            {
+
+            }
+            List<ProductInfo> products = JsonConvert.DeserializeObject<List<ProductInfo>>(saveValue);
+            return products;
+        }
     }
 }
